@@ -28,7 +28,7 @@ module uart_baud_gen #(
 )(
     input clk,
     input rst,
-    output logic baud_tick
+    output baud_tick
 );
 
     localparam CLK_DIV = CLK_FREQ / (BAUD_RATE * SAMPLING_RATE); // clk_freq / sample_freq
@@ -36,15 +36,14 @@ module uart_baud_gen #(
     logic [$clog2(CLK_DIV)-1:0] count;
     
     always_ff @(posedge clk or posedge rst)
-        if (rst) begin
+        if (rst)
             count <= 0;
-            baud_tick <= 0;
-        end else if (count == CLK_DIV - 1) begin
+        else if (count == CLK_DIV - 1)
             count <= 0;
-            baud_tick <= ~baud_tick;
-        end else
+        else
             count <= count + 1;
-        
+     
+     assign baud_tick = count == CLK_DIV-1;
             
 
     

@@ -21,9 +21,9 @@
 
 
 module uart_baud_gen #(
-        parameter int BAUD_RATE = 9600,
-        parameter int SAMPLING_RATE = 16,
-        parameter int CLK_FREQ = 50_000_000
+    parameter int BAUD_RATE = 9600,
+    parameter int SAMPLING_RATE = 16,
+    parameter int CLK_FREQ = 50_000_000
         
 )(
     input clk,

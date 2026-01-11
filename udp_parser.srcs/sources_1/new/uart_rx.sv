@@ -26,7 +26,8 @@ module uart_rx (
     input logic rst_n,
     output logic [7:0] data_out,
     output logic data_valid,
-    output logic busy
+    output logic busy,
+    output logic frame_err
 );
     
     logic baud_tick;
@@ -54,6 +55,7 @@ module uart_rx (
     
     always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
+            state <= IDLE;
             tick_cnt <= 0;
             bit_cnt  <= 0;
             rx_shift_reg <= 0;
@@ -84,6 +86,7 @@ module uart_rx (
                 STOP: begin
                     if (tick_cnt == 15) begin
                         tick_cnt <= 0;
+                        data_out <= rx_shift_reg;
                     end else begin
                         tick_cnt <= tick_cnt + 1;
                     end
@@ -92,7 +95,6 @@ module uart_rx (
                 DONE: begin
                     tick_cnt <= 0;
                     bit_cnt <= 0;
-                    data_out <= rx_shift_reg;
                 end
                      
             endcase
@@ -105,15 +107,24 @@ module uart_rx (
         // used for the case where if statements are false
         next_state = state;
         case (state)
-            IDLE: if (rx_sync == 0) next_state = START;
+            IDLE: begin
+            if (rx_sync == 0) next_state = START;
+            frame_err = 0;
+            end
             START: if (tick_cnt == 7) next_state = DATA; 
             DATA: if (tick_cnt == 15 && bit_cnt == 7) next_state = STOP;
-            STOP: if (rx_sync == 1 && tick_cnt == 15) next_state = DONE;
+            STOP: begin
+                if (tick_cnt == 15) begin
+                    next_state = DONE;
+                    frame_err = (rx_sync == 0);
+                end
+            end
             DONE: next_state = IDLE;
             default: next_state = state;
         endcase
    end 
     assign busy = (state != IDLE);
     assign data_valid = (state == DONE);
+    
     
 endmodule

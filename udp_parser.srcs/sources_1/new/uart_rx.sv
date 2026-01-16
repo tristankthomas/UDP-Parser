@@ -1,23 +1,4 @@
 `timescale 1ns / 1ps
-//////////////////////////////////////////////////////////////////////////////////
-// Company: 
-// Engineer: 
-// 
-// Create Date: 06.01.2026 19:38:21
-// Design Name: 
-// Module Name: uart_rx
-// Project Name: 
-// Target Devices: 
-// Tool Versions: 
-// Description: 
-// 
-// Dependencies: 
-// 
-// Revision:
-// Revision 0.01 - File Created
-// Additional Comments:
-// 
-//////////////////////////////////////////////////////////////////////////////////
 
 
 module uart_rx (
@@ -106,11 +87,9 @@ module uart_rx (
     always_comb begin
         // used for the case where if statements are false
         next_state = state;
+        frame_err = 0;
         case (state)
-            IDLE: begin
-            if (rx_sync == 0) next_state = START;
-            frame_err = 0;
-            end
+            IDLE: if (rx_sync == 0) next_state = START;
             START: if (tick_cnt == 7) next_state = DATA; 
             DATA: if (tick_cnt == 15 && bit_cnt == 7) next_state = STOP;
             STOP: begin

@@ -11,6 +11,7 @@ module uart_rx_tb ();
     logic [7:0] data_out;
     logic busy, data_valid, error;
     logic [7:0] data_q[$];
+    bit error_q[$];
     
     
     uart_rx uut (
@@ -26,58 +27,109 @@ module uart_rx_tb ();
     initial clk = 0;
     always #(CLK_PERIOD/2) clk = ~clk;
     
+    clocking cb @(posedge clk);
+        default input #1ns output #0ns;
+        input data_valid, data_out, error, busy;
+        output rx;
+    endclocking
+    
+    
+    
+    // covergroup
+    covergroup uart_rx_cg;
+        cp_data: coverpoint data_out {
+            bins corner_cases[] = {8'h00, 8'hFF, 8'h55, 8'hAA};
+            bins all_others     = {[8'h01:8'hFE]};
+        }
+        cp_error: coverpoint error;
+        cross_data_err: cross cp_data, cp_error;
+    endgroup
+    
+    
+    uart_rx_cg cg_inst;
+    
+    
     // driver
-    task automatic send_byte(input [7:0] data);
+    task automatic send_byte(input [7:0] data, input bit corrupt=0);
         data_q.push_back(data);
+        error_q.push_back(corrupt);
         $display("[TX] Starting transmission of 0x%h", data);
         
         // start bit
-        rx = 1'b0;
+        cb.rx <= 1'b0;
         #(BAUD_PERIOD);
         
         // data bits (LSB first)
         for (int i = 0; i < 8; i++) begin
-            rx = data[i];
+            cb.rx <= data[i];
             #(BAUD_PERIOD);
         end
         
         // stop bit
-        rx = 1'b1;
+        cb.rx <= corrupt ? 1'b0 : 1'b1;
         #(BAUD_PERIOD);
+//        rx = 1'b1;
+        
     endtask
     
     task reset();
-        rx = 1;
+        rx <= 1;
         rst_n = 0;
         repeat(10) @(posedge clk);
         rst_n = 1;
     endtask
+   
     
     // scoreboard
-    always @(posedge data_valid) begin
-        logic [7:0] data_ref;
-        if (error) begin
-            $error("[ERROR] Stop bit not detected!");
-        end else if (data_q.size() > 0) begin
-            data_ref = data_q.pop_front();
-            assert(data_out === data_ref) 
-                $display("[PASS] Received: 0x%h", data_out);
-            else 
-                $error("[FAIL] Expected: 0x%h, Got: 0x%h", data_ref, data_out);
-        end else begin
-            $error("[FAIL] Unexpected data_valid asserted: 0x%h", data_out);
+    always @(cb) begin
+        if (cb.data_valid) begin
+            logic [7:0] data_ref;
+            bit error_ref;
+            
+            if (data_q.size() > 0) begin
+                data_ref = data_q.pop_front();
+                error_ref = error_q.pop_front();
+                
+                a_error_bit: assert (cb.error === error_ref)
+                    $display("[PASS] Error bit matches: %b", cb.error);
+                else
+                    $error("[FAIL] Error bit mismatch! Exp: %b, Got: %b", error_ref, cb.error);
+                    
+                if (!cb.error) begin
+                    a_data_mismatch: assert(cb.data_out === data_ref)
+                        $display("[PASS] Received: 0x%h", cb.data_out);
+                    else
+                        $error("[FAIL] Data mismatch! Exp: 0x%h, Got: 0x%h", data_ref, cb.data_out);
+                end
+            end
+            cg_inst.sample();
         end
     end
-    
    
     
     // test sequence
     initial begin
+    
+        cg_inst = new();
         $display("Simulation Started.");
         reset();
         
+        // sending random data
+        repeat (10) begin
+            logic [7:0] r_data = $urandom;
+            send_byte(r_data);
+            #(BAUD_PERIOD * $urandom_range(0, 5)); 
+        end
+        
+//        // corner cases
+        send_byte(8'h00);
+        send_byte(8'hFF);
+        send_byte(8'h55);
         send_byte(8'hAA);
-        send_byte(8'hA5);
+        
+        // corrupted byte
+        send_byte($urandom, 1);
+        
         
         // wait until all data is processed
         fork : timeout_block

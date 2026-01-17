@@ -68,7 +68,6 @@ module uart_rx_tb ();
         // stop bit
         cb.rx <= corrupt ? 1'b0 : 1'b1;
         #(BAUD_PERIOD);
-//        rx = 1'b1;
         
     endtask
     
@@ -109,19 +108,19 @@ module uart_rx_tb ();
     
     // test sequence
     initial begin
-    
+        logic [7:0] r_data;
         cg_inst = new();
         $display("Simulation Started.");
         reset();
         
         // sending random data
         repeat (10) begin
-            logic [7:0] r_data = $urandom;
+            r_data = $urandom;
             send_byte(r_data);
             #(BAUD_PERIOD * $urandom_range(0, 5)); 
         end
         
-//        // corner cases
+        // corner cases
         send_byte(8'h00);
         send_byte(8'hFF);
         send_byte(8'h55);

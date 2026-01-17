@@ -41,7 +41,11 @@ module uart_rx (
             bit_cnt  <= 0;
             rx_shift_reg <= 0;
             data_out <= 0;
+        end if (state == DONE) begin
+            state <= IDLE;
         end else if (baud_tick) begin
+            state <= next_state;
+            
             case (state)
                 IDLE: tick_cnt <= 0;
                 
@@ -79,7 +83,7 @@ module uart_rx (
                 end
                      
             endcase
-            state <= next_state;
+            
         end
         
     end

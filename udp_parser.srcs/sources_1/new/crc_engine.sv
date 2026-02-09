@@ -31,7 +31,7 @@ module crc_engine(
     
     always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            crc <= 32'h00000000;
+            crc <= 32'hFFFFFFFF;
         end else if (en) begin
             crc <= next_crc(crc, byte_in);
         end

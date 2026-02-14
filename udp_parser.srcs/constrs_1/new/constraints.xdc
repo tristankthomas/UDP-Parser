@@ -6,8 +6,11 @@ set_property PACKAGE_PIN J14 [get_ports {ETH_RXD[0]}]
 set_property PACKAGE_PIN K17 [get_ports ETH_RXCK]
 set_property PACKAGE_PIN K18 [get_ports ETH_RXDV]
 
-# ethernet reset
-set_property PACKAGE_PIN H20 [get_ports ETH_nRST]
+# ethernet TX
+set_property PACKAGE_PIN L14 [get_ports ETH_TXCK]
+
+# ethernet reset (updated to J20 from H20)
+set_property PACKAGE_PIN J20 [get_ports ETH_nRST]
 
 # keys
 set_property PACKAGE_PIN P16 [get_ports PL_KEY1]

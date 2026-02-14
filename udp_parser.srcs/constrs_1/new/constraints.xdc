@@ -15,9 +15,19 @@ set_property PACKAGE_PIN J20 [get_ports ETH_nRST]
 # keys
 set_property PACKAGE_PIN P16 [get_ports PL_KEY1]
 
+# leds
+set_property PACKAGE_PIN P15 [get_ports PL_LED1]
+set_property PACKAGE_PIN U12 [get_ports PL_LED2]
+
+# clk
+set_property PACKAGE_PIN N18 [get_ports PL_CLK_50M]
+
 # IO standards
 set_property IOSTANDARD LVCMOS33 [get_ports ETH_*]
 set_property IOSTANDARD LVCMOS33 [get_ports PL_KEY1]
+set_property IOSTANDARD LVCMOS33 [get_ports PL_LED1]
+set_property IOSTANDARD LVCMOS33 [get_ports PL_LED2]
+set_property IOSTANDARD LVCMOS33 [get_ports PL_CLK_50M]
 
 # RX clock constraint (25MHz)
 create_clock -period 40.000 -name eth_rx_clk [get_ports ETH_RXCK]

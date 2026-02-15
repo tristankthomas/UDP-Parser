@@ -19,4 +19,4 @@ while True:
     # send the frame
     sendp(frame, iface=iface, verbose=True)
 
-    time.sleep(1)  # 10 ms
+    time.sleep(0.5)  # 10 ms

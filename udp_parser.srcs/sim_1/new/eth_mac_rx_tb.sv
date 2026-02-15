@@ -242,7 +242,6 @@ module eth_mac_rx_tb;
     
     
     // storing result
-    // probably need to add a clocking block to avoid race conditions
     always @(posedge rx_clk) begin
         if (wr_en) begin
             rx_frame_q.push_back(byte_out);

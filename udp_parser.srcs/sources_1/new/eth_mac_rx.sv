@@ -52,8 +52,6 @@ module eth_mac_rx #(
             byte_cnt <= '0;
             frame_valid <= 1'b0;
             frame_err <= 1'b0;
-            data_out <= 8'b0;
-            wr_en <= 1'b0;
             init_crc <= 1'b1;
             
         end else begin
@@ -110,7 +108,6 @@ module eth_mac_rx #(
                         data_pipe <= {data_pipe[2:0], rx_byte};
                     end else if (~rx_valid) begin
                         state <= FCS;
-                        wr_pipe <= 4'b0;
                     end
                 end
                 

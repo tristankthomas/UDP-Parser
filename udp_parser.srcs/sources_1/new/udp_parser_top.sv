@@ -56,7 +56,7 @@ module udp_parser_top(
     // instantiate mac
     eth_mac_rx #(
         .MAC_ADDR(MAC_ADDR)
-    ) mac_rx (
+    ) u_mac_rx (
         .rx_clk(ETH_RXCK),
         .rst_n(rst_n),
         .rx_data(ETH_RXD),
@@ -78,7 +78,7 @@ module udp_parser_top(
     logic fifo_overflow;
     
     // feed output data into fifo
-    axis_data_fifo_0 rx_fifo (
+    axis_data_fifo_0 u_rx_fifo (
       .s_axis_aresetn(rst_n),
       .s_axis_aclk(ETH_RXCK),
       .s_axis_tvalid(wr_en),
@@ -105,6 +105,26 @@ module udp_parser_top(
         .rst_n(rst_n),
         .trigger(fifo_overflow),
         .dout(PL_LED2)
+    );
+    
+    logic [7:0] ip_data_in;
+    logic ip_data_valid;
+    logic ip_eof;
+    logic ip_eth_err;
+    
+    // send data through ethernet header passer
+    eth_parser u_eth_parser (
+        .clk(PL_CLK_50M),
+        .rst_n(rst_n),
+        .fifo_valid(m_axis_tvalid),
+        .data_in(m_axis_tdata),
+        .fifo_eof(m_axis_tlast),
+        .fifo_frame_err(m_axis_tuser),
+        .fifo_ready(m_axis_tready),
+        .ip_data_out(ip_data_in),
+        .ip_valid(ip_data_valid),
+        .ip_eof(ip_eof),
+        .ip_eth_err(ip_eth_err)
     );
     
 endmodule

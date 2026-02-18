@@ -109,7 +109,6 @@ module eth_parser (
                         if (fifo_eof) begin
                             state <= HEADER;
                             byte_cnt <= '0;
-                            ip_eof <= 1'b1;
                         end
                     end
 

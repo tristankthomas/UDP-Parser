@@ -107,26 +107,28 @@ module udp_parser_top #(
         .ip_eth_err(ip_eth_err)
     );
     
-    logic ip_frame_valid = ip_eof && ~ip_eth_err;
-    // stretch frame_valid for LED1
-    pulse_stretcher #(
-        .COUNT_WIDTH(21)
-    ) ps_valid (
-        .clk(ETH_RXCK),
-        .rst_n(rst_n),
-        .trigger(ip_frame_valid),
-        .dout(PL_LED1)
-    );
+//    logic ip_frame_valid = ip_eof && ~ip_eth_err;
+    assign PL_LED1 = ip_eof && ~ip_eth_err;
+    assign PL_LED2 = ip_eth_err;
+//    // stretch frame_valid for LED1
+//    pulse_stretcher #(
+//        .COUNT_WIDTH(21)
+//    ) ps_valid (
+//        .clk(ETH_RXCK),
+//        .rst_n(rst_n),
+//        .trigger(ip_frame_valid),
+//        .dout(PL_LED1)
+//    );
     
-    // stretch frame_err for LED2
-    pulse_stretcher #(
-        .COUNT_WIDTH(21)
-    ) ps_err (
-        .clk(ETH_RXCK),
-        .rst_n(rst_n),
-        .trigger(ip_eth_err),
-        .dout(PL_LED2)
-    );
+//    // stretch frame_err for LED2
+//    pulse_stretcher #(
+//        .COUNT_WIDTH(21)
+//    ) ps_err (
+//        .clk(ETH_RXCK),
+//        .rst_n(rst_n),
+//        .trigger(ip_eth_err),
+//        .dout(PL_LED2)
+//    );
     
     
 endmodule

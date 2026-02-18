@@ -275,8 +275,7 @@ module eth_mac_rx_tb;
             DEST_MAC,
             48'h71ABD97E0110,
             16'h0800,
-//            random_payload(4)
-            '{8'hab, 8'hcb}
+            random_payload(4)
         );
         send_frame(f0);
         
@@ -286,17 +285,17 @@ module eth_mac_rx_tb;
             DEST_MAC,
             48'h71_AB_D9_7E_01_10,
             16'h0800,
-            random_payload(200)
+            random_payload(12)
         );
         send_frame(f1);
         
         $display("Sending invaild frame - wrong mac");
         // invalid frame - wrong mac
         f2 = new(
-            48'hFF_FF_FF_FF_FF_FF,
-            48'h71_AB_D9_7E_01_10,
+            48'h123456789ABC,
+            48'h71ABD97E0110,
             16'h0800,
-            random_payload(80)
+            random_payload(20)
         );
         send_frame(f2);
         

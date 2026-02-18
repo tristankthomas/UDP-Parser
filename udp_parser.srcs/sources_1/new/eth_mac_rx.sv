@@ -44,22 +44,23 @@ module eth_mac_rx #(
     // create a 5 cycle delay so that the last payload byte aligns with the crc result (valid | err)
     byte_t [4:0] data_pipe;
     logic [4:0] wr_pipe;
+    logic crc_err;
     
     always_ff @(posedge rx_clk or negedge rst_n) begin
         if (~rst_n) begin
             state <= IDLE;
             byte_cnt <= '0;
             frame_valid <= 1'b0;
-            frame_err <= 1'b0;
+            crc_err <= 1'b0;
             init_crc <= 1'b1;
             wr_pipe <= 5'b0;
-            
+
         end else begin
             init_crc <= 1'b0;
             case (state)
                 IDLE : begin
                     frame_valid <= 1'b0;
-                    frame_err <= 1'b0;
+                    crc_err <= 1'b0;
 //                    wr_en <= 1'b0;
                     if (rx_byte_valid && rx_byte === PREAMBLE_BYTE) state <= PREAMBLE;
                 end
@@ -79,17 +80,22 @@ module eth_mac_rx #(
                 end
                 
                 HEADER: begin
-                    
+                    // we enter this state based on rx_byte so no shift
                     if (rx_byte_valid) begin
                         // read in the header with 5 cycle delay for FCS
                         wr_pipe <= {wr_pipe[3:0], 1'b1};
                         data_pipe <= {data_pipe[3:0], rx_byte};
+                    end
                         
+                    if (wr_en) begin
                         if (byte_cnt < MAC_LEN) begin
                             // if fpga mac is invalid then flush frame
-                            if (rx_byte !== MAC_ADDR[MAC_LEN-1-byte_cnt]) begin
-                                frame_err <= 1'b1;
+                            if (data_out !== MAC_ADDR[MAC_LEN-1-byte_cnt]) begin
+//                                frame_err <= 1'b1;
                                 state <= IDLE;
+                                wr_pipe <= 5'b0;
+
+                                
                             end
                             byte_cnt <= byte_cnt + 1'b1;
                         end else if (byte_cnt < HEADER_LEN) begin
@@ -107,17 +113,17 @@ module eth_mac_rx #(
                     // pulse based on valid bytes
                     if (rx_byte_valid) begin
                         // read in payload
-                        wr_pipe <= {wr_pipe[3:0], rx_byte_valid};
+                        wr_pipe <= {wr_pipe[3:0], 1'b1};
                         data_pipe <= {data_pipe[3:0], rx_byte};
                         
                     end else if (~rx_valid) begin
                         // perform FCS check - reversed order
                         if (curr_crc == 32'hDEBB20E3) begin
                             frame_valid <= 1'b1;
-                            frame_err <= 1'b0;
+                            crc_err <= 1'b0;
                         end else begin
                             frame_valid <= 1'b0;
-                            frame_err <= 1'b1;
+                            crc_err <= 1'b1;
                         end
                         
                         state <= FINISH;
@@ -127,7 +133,7 @@ module eth_mac_rx #(
                 
                 FINISH: begin
                     frame_valid <= 1'b0;
-                    frame_err <= 1'b0;
+                    crc_err <= 1'b0;
                     wr_pipe <= 5'b0;
                     if (byte_cnt == IFG_CYCLES) state <= IDLE;
                     else byte_cnt <= byte_cnt + 1'b1;
@@ -140,8 +146,11 @@ module eth_mac_rx #(
     
     
     assign compute_crc = rx_byte_valid & (state == HEADER | state == PAYLOAD);
-    assign wr_en = wr_pipe[4] & (rx_byte_valid | frame_valid | frame_err); // want wr_en to pulse with available byte
+    assign wr_en = wr_pipe[4] & (rx_byte_valid | frame_err | frame_valid); // want wr_en to pulse with available byte
     assign data_out = data_pipe[4];
+    
+    assign mac_mismatch = wr_en && (state == HEADER) && (byte_cnt < MAC_LEN) && (data_out !== MAC_ADDR[MAC_LEN-1-byte_cnt]);
+    assign frame_err = mac_mismatch || crc_err;
     
 endmodule
 

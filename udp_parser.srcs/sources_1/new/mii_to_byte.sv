@@ -17,6 +17,7 @@ module mii_to_byte(
         if (~rst_n) begin
             low_nibble <= 4'h0;
             nibble_phase <= 1'b0;
+            
         end else if (rx_valid) begin
             if (nibble_phase == 1'b0) begin
                 low_nibble <= rx_data;

@@ -82,24 +82,16 @@ module eth_mac_rx_tb;
             crc_reg = 32'hFFFFFFFF;
         
             // destination MAC
-            for (int i = 5; i >= 0; i--) begin
-                crc_reg = get_next_crc(crc_reg, dest_mac[i]);
-            end
+            for (int i = 5; i >= 0; i--) crc_reg = get_next_crc(crc_reg, dest_mac[i]);
         
             // source MAC
-            for (int i = 5; i >= 0; i--) begin
-                crc_reg = get_next_crc(crc_reg, source_mac[i]);
-            end
+            for (int i = 5; i >= 0; i--) crc_reg = get_next_crc(crc_reg, source_mac[i]);
         
             // EtherType
-            for (int i = 1; i >= 0; i--) begin
-                crc_reg = get_next_crc(crc_reg, ether_type[i]);
-            end
-        
+            for (int i = 1; i >= 0; i--) crc_reg = get_next_crc(crc_reg, ether_type[i]);
+
             // payload
-            foreach (payload[i]) begin
-                crc_reg = get_next_crc(crc_reg, payload[i]);
-            end
+            foreach (payload[i]) crc_reg = get_next_crc(crc_reg, payload[i]);
         
             return crc_reg ^ 32'hFFFFFFFF;
         endfunction
@@ -155,6 +147,7 @@ module eth_mac_rx_tb;
         send_nibble(data[3:0]);
         @(posedge rx_clk);
         send_nibble(data[7:4]);
+        @(posedge rx_clk);
     endtask
     
     
@@ -171,46 +164,25 @@ module eth_mac_rx_tb;
         rx_valid <= 1'b1;
         
         // preamble
-        repeat(PREAMBLE_LEN) begin
-            send_byte(PREAMBLE_BYTE);
-            @(posedge rx_clk);
-        end
-        
+        repeat(PREAMBLE_LEN) send_byte(PREAMBLE_BYTE);
         send_byte(SFD_BYTE);
-        @(posedge rx_clk);
         
         // send destination mac
-        for (int i = MAC_LEN-1; i >= 0; i--) begin
-            send_byte(frame.dest_mac[i]);
-            @(posedge rx_clk);
-        end
-        
+        for (int i = MAC_LEN-1; i >= 0; i--) send_byte(frame.dest_mac[i]);
+
         // send source mac
-        for (int i = MAC_LEN-1; i >= 0; i--) begin
-            send_byte(frame.source_mac[i]);
-            @(posedge rx_clk);
-        end
-        
+        for (int i = MAC_LEN-1; i >= 0; i--) send_byte(frame.source_mac[i]);
+
         // send ethertype
         send_byte(frame.ether_type[1]);
-        @(posedge rx_clk);
         send_byte(frame.ether_type[0]);
-        @(posedge rx_clk);
         
         // send payload
-        foreach(frame.payload[i]) begin
-            send_byte(frame.payload[i]);
-            @(posedge rx_clk);
-        
-        end
-        
+        foreach(frame.payload[i]) send_byte(frame.payload[i]);
+
         // send FSC
-        for (int i = 0; i < 4; i++) begin
-            send_byte(frame.fcs[i]);
-            @(posedge rx_clk);
-        end 
-        
-        
+        for (int i = 0; i < 4; i++) send_byte(frame.fcs[i]);
+
         // end of frame
         rx_valid <= 1'b0;
         rx_data <= 4'h0;
@@ -241,16 +213,17 @@ module eth_mac_rx_tb;
     endfunction
     
     
-    // storing result
+    
     always @(posedge rx_clk) begin
-        if (wr_en) begin
-            rx_frame_q.push_back(byte_out);
-        end
+        // storing result
+        if (wr_en) rx_frame_q.push_back(byte_out);
+        
+        // scoreboard
+        if (frame_valid) check_frame();
     end
    
-   
-    // scoreboard
-    always @(posedge frame_valid) begin
+    
+    task check_frame;
         if (rx_frame_q.size() != tx_frame_q.size()) begin   
             $display("ERROR: Frame size mismatch. Expected: %d, Result: %d", tx_frame_q.size(), rx_frame_q.size());
             $write("DEBUG: tx_frame_q contents: ");
@@ -279,7 +252,9 @@ module eth_mac_rx_tb;
             rx_frame_q.delete();
         
         end   
-    end
+    
+    
+    endtask
     
     always @(posedge frame_err) begin
         $display("WARNING: Frame not received correctly.");
@@ -294,15 +269,18 @@ module eth_mac_rx_tb;
         
         reset();
         
+        $display("Sending valid frame");
         // valid frame
         f0 = new(
             DEST_MAC,
             48'h71ABD97E0110,
             16'h0800,
-            random_payload(36)
+//            random_payload(4)
+            '{8'hab, 8'hcb}
         );
         send_frame(f0);
         
+        $display("Sending valid frame");
         // valid frame
         f1 = new(
             DEST_MAC,
@@ -312,6 +290,7 @@ module eth_mac_rx_tb;
         );
         send_frame(f1);
         
+        $display("Sending invaild frame - wrong mac");
         // invalid frame - wrong mac
         f2 = new(
             48'hFF_FF_FF_FF_FF_FF,

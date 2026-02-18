@@ -1,6 +1,7 @@
-`timescale 1ns / 1ps
 
-module udp_parser_top(
+module udp_parser_top #(
+    parameter POR_BIT = 24
+)(
     input logic PL_CLK_50M,
     input logic ETH_RXCK,
     input logic ETH_RXDV,
@@ -22,36 +23,15 @@ module udp_parser_top(
     logic por_done; // Power on Reset done
     
     // delay of approx 330ms - requirement is 10ms
-    logic [24:0] r_cnt = 25'd0;
+    logic [POR_BIT:0] r_cnt = '0;
     always_ff @(posedge PL_CLK_50M) begin
-        if (!r_cnt[24]) r_cnt <= r_cnt + 1'b1;
+        if (!r_cnt[POR_BIT]) r_cnt <= r_cnt + 1'b1;
     end
-    assign por_done = r_cnt[24];
+    assign por_done = r_cnt[POR_BIT];
     
     // rst whenever key is pressed OR por hasnt finished
     assign rst_n = por_done && PL_KEY1; 
     assign ETH_nRST = rst_n;
-    
-    // stretch frame_valid for LED1
-    pulse_stretcher #(
-        .COUNT_WIDTH(21)
-    ) ps_valid (
-        .clk(ETH_RXCK),
-        .rst_n(rst_n),
-        .trigger(frame_valid),
-        .dout(PL_LED1)
-    );
-
-//    // stretch frame_err for LED2
-//    pulse_stretcher #(
-//        .COUNT_WIDTH(21)
-//    ) ps_err (
-//        .clk(ETH_RXCK),
-//        .rst_n(rst_n),
-//        .trigger(frame_err),
-//        .dout(PL_LED2)
-//    );
-    
     
     // instantiate mac
     eth_mac_rx #(
@@ -97,15 +77,15 @@ module udp_parser_top(
     assign s_axis_tlast = frame_valid || frame_err;
     assign fifo_overflow = wr_en && !s_axis_tready;
  
-    // stretch fifo overflow for LED2
-    pulse_stretcher #(
-        .COUNT_WIDTH(21)
-    ) ps_fifo_err (
-        .clk(ETH_RXCK),
-        .rst_n(rst_n),
-        .trigger(fifo_overflow),
-        .dout(PL_LED2)
-    );
+//    // stretch fifo overflow for LED2
+//    pulse_stretcher #(
+//        .COUNT_WIDTH(21)
+//    ) ps_fifo_err (
+//        .clk(ETH_RXCK),
+//        .rst_n(rst_n),
+//        .trigger(fifo_overflow),
+//        .dout(PL_LED2)
+//    );
     
     logic [7:0] ip_data_in;
     logic ip_data_valid;
@@ -126,5 +106,27 @@ module udp_parser_top(
         .ip_eof(ip_eof),
         .ip_eth_err(ip_eth_err)
     );
+    
+    logic ip_frame_valid = ip_eof && ~ip_eth_err;
+    // stretch frame_valid for LED1
+    pulse_stretcher #(
+        .COUNT_WIDTH(21)
+    ) ps_valid (
+        .clk(ETH_RXCK),
+        .rst_n(rst_n),
+        .trigger(ip_frame_valid),
+        .dout(PL_LED1)
+    );
+    
+    // stretch frame_err for LED2
+    pulse_stretcher #(
+        .COUNT_WIDTH(21)
+    ) ps_err (
+        .clk(ETH_RXCK),
+        .rst_n(rst_n),
+        .trigger(ip_eth_err),
+        .dout(PL_LED2)
+    );
+    
     
 endmodule

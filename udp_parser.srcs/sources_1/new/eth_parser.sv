@@ -59,14 +59,6 @@ module eth_parser (
             
             if (fifo_ready && fifo_valid) begin
                 case (state)
-                    ERROR : begin
-                        // flush the frame after finding new error (ethertype)
-                        if (fifo_eof) begin
-                            state <= HEADER;
-                            byte_cnt <= '0;
-                            ip_eof <= 1'b1;
-                        end
-                    end
                     
                     HEADER : begin
                         byte_cnt <= byte_cnt + 1'b1;
@@ -109,6 +101,16 @@ module eth_parser (
                         
                         end
 
+                    end
+                    
+                    
+                    ERROR : begin
+                        // flush the frame after finding new error (ethertype)
+                        if (fifo_eof) begin
+                            state <= HEADER;
+                            byte_cnt <= '0;
+                            ip_eof <= 1'b1;
+                        end
                     end
 
                 endcase

@@ -20,7 +20,7 @@ module eth_mac_rx #(
     logic init_crc;
     logic [$clog2(MAX_PAYLOAD_LEN)-1:0] byte_cnt;
     
-    typedef enum logic [2:0] { IDLE, PREAMBLE, HEADER, PAYLOAD, FCS, FINISH } state_t;
+    typedef enum logic [2:0] { IDLE, PREAMBLE, HEADER, PAYLOAD, FINISH } state_t;
     state_t state;
     
     mii_to_byte u_mii_to_byte (
@@ -41,8 +41,9 @@ module eth_mac_rx #(
         .crc(curr_crc) 
     );
     
-    byte_t [3:0] data_pipe;
-    logic [3:0] wr_pipe;
+    // create a 5 cycle delay so that the last payload byte aligns with the crc result (valid | err)
+    byte_t [4:0] data_pipe;
+    logic [4:0] wr_pipe;
     
     always_ff @(posedge rx_clk or negedge rst_n) begin
         if (~rst_n) begin
@@ -51,6 +52,7 @@ module eth_mac_rx #(
             frame_valid <= 1'b0;
             frame_err <= 1'b0;
             init_crc <= 1'b1;
+            wr_pipe <= 5'b0;
             
         end else begin
             init_crc <= 1'b0;
@@ -58,11 +60,12 @@ module eth_mac_rx #(
                 IDLE : begin
                     frame_valid <= 1'b0;
                     frame_err <= 1'b0;
-                    wr_pipe <= 4'b0;
+//                    wr_en <= 1'b0;
                     if (rx_byte_valid && rx_byte === PREAMBLE_BYTE) state <= PREAMBLE;
                 end
                 
                 PREAMBLE: begin
+                
                     if (rx_byte_valid) begin
                         if (rx_byte === SFD_BYTE) begin
                             byte_cnt <= '0;
@@ -76,10 +79,11 @@ module eth_mac_rx #(
                 end
                 
                 HEADER: begin
+                    
                     if (rx_byte_valid) begin
-                        // read in the header with 4 cycle delay for FCS
-                        wr_pipe <= {wr_pipe[2:0], 1'b1};
-                        data_pipe <= {data_pipe[2:0], rx_byte};
+                        // read in the header with 5 cycle delay for FCS
+                        wr_pipe <= {wr_pipe[3:0], 1'b1};
+                        data_pipe <= {data_pipe[3:0], rx_byte};
                         
                         if (byte_cnt < MAC_LEN) begin
                             // if fpga mac is invalid then flush frame
@@ -100,33 +104,31 @@ module eth_mac_rx #(
                 end
                 
                 PAYLOAD: begin
+                    // pulse based on valid bytes
                     if (rx_byte_valid) begin
                         // read in payload
-                        wr_pipe <= {wr_pipe[2:0], 1'b1};
-                        data_pipe <= {data_pipe[2:0], rx_byte};
+                        wr_pipe <= {wr_pipe[3:0], rx_byte_valid};
+                        data_pipe <= {data_pipe[3:0], rx_byte};
+                        
                     end else if (~rx_valid) begin
-                        state <= FCS;
+                        // perform FCS check - reversed order
+                        if (curr_crc == 32'hDEBB20E3) begin
+                            frame_valid <= 1'b1;
+                            frame_err <= 1'b0;
+                        end else begin
+                            frame_valid <= 1'b0;
+                            frame_err <= 1'b1;
+                        end
+                        
+                        state <= FINISH;
+                        byte_cnt <= '0;
                     end
-                end
-                
-                FCS: begin
-                    // perform FCS check - reversed order
-                    if (curr_crc == 32'hDEBB20E3) begin
-                        frame_valid <= 1'b1;
-                        frame_err <= 1'b0;
-                    end else begin
-                        frame_valid <= 1'b0;
-                        frame_err <= 1'b1;
-                    end
-                    
-                    state <= FINISH;
-                    byte_cnt <= '0;
                 end
                 
                 FINISH: begin
                     frame_valid <= 1'b0;
                     frame_err <= 1'b0;
-                    wr_pipe <= 4'b0;
+                    wr_pipe <= 5'b0;
                     if (byte_cnt == IFG_CYCLES) state <= IDLE;
                     else byte_cnt <= byte_cnt + 1'b1;
                 end
@@ -138,9 +140,8 @@ module eth_mac_rx #(
     
     
     assign compute_crc = rx_byte_valid & (state == HEADER | state == PAYLOAD);
-    assign data_out = data_pipe[3];
-    // suppress writes as soon as the last byte is read so that we do not write fcs[0]
-    assign wr_en = wr_pipe[3] & rx_byte_valid;
+    assign wr_en = wr_pipe[4] & (rx_byte_valid | frame_valid | frame_err); // want wr_en to pulse with available byte
+    assign data_out = data_pipe[4];
     
 endmodule
 

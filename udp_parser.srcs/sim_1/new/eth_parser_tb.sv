@@ -24,6 +24,7 @@ module eth_parser_tb;
 
     parameter CLK_FREQ = 50_000_000;
     parameter CLK_PERIOD = 1.0e9/CLK_FREQ;
+    parameter ETHERTYPE = 16'h0800;
     
     logic clk;
     logic rst_n;
@@ -32,10 +33,10 @@ module eth_parser_tb;
     logic fifo_eof;
     logic fifo_frame_err;
     logic fifo_ready;
-    byte_t ip_data_out;
-    logic ip_valid;
-    logic ip_eof;
-    logic ip_eth_err;
+    byte_t eth_data_out;
+    logic eth_byte_valid;
+    logic eth_eof;
+    logic eth_err;
     
     byte_t rx_data_q[$]; // data outputted to IP parser 
     byte_t tx_data_q[$]; // data inputted from FIFO
@@ -43,7 +44,9 @@ module eth_parser_tb;
     logic error_found = 1'b0;
     
     // instantiate uut
-    eth_parser uut (.*);
+    eth_parser #(
+        .ETHERTYPE(ETHERTYPE)
+    ) uut (.*);
     
     // clk generation
     initial clk = 0;
@@ -64,7 +67,8 @@ module eth_parser_tb;
         fifo_valid <= 1'b1;
         data_in <= data;
         @(posedge clk);
-        
+        fifo_valid <= 1'b0;
+        repeat(3) @(posedge clk);
         
     endtask
     
@@ -75,7 +79,7 @@ module eth_parser_tb;
         input logic crc_err,
         input logic mac_err
     );
-        error_expected = mac_err || crc_err || (ether_type != 16'h0800);
+        error_expected = mac_err || crc_err || (ether_type != ETHERTYPE);
         
         // send mac addresses
         for (int i = 0; i < 12; i++) begin
@@ -133,13 +137,13 @@ module eth_parser_tb;
     // scoreboard
     always @(posedge clk) begin
         // add received byte to queue
-        if (ip_valid) rx_data_q.push_back(ip_data_out);
+        if (eth_byte_valid) rx_data_q.push_back(eth_data_out);
         
         // if error occurs log it
-        if (ip_eth_err) error_found = 1'b1;;
+        if (eth_err) error_found = 1'b1;;
         
         // check results once frame complete
-        if (ip_eof) check_frame();
+        if (eth_eof | eth_err) check_frame();
     end
     
     

@@ -20,7 +20,9 @@ import eth_pkg::*;
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module eth_parser (
+module eth_parser #(
+    parameter ETHERTYPE
+)(
     input logic clk,
     input logic rst_n,
     input logic fifo_valid,
@@ -28,33 +30,33 @@ module eth_parser (
     input logic fifo_eof,
     input logic fifo_frame_err,
     output logic fifo_ready,
-    output byte_t ip_data_out,
-    output logic ip_valid,
-    output logic ip_eof,
-    output logic ip_eth_err
+    output byte_t eth_data_out,
+    output logic eth_byte_valid,
+    output logic eth_eof,
+    output logic eth_err
 );
 
     typedef enum logic [1:0] { HEADER, PAYLOAD, ERROR } state_t;
     state_t state;
     
-    logic [$clog2(HEADER_LEN)-1:0] byte_cnt;
+    logic [$clog2(ETH_HEADER_LEN)-1:0] byte_cnt;
     byte_t ethertype_msb;
     
-    always @(posedge clk or negedge rst_n) begin
+    always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
-            ip_data_out <= 7'b0;
-            ip_valid <= 1'b0;
-            ip_eof <= 1'b0;
+            eth_data_out <= 7'b0;
+            eth_byte_valid <= 1'b0;
+            eth_eof <= 1'b0;
             fifo_ready <= 1'b0;
             byte_cnt <= '0;
-            ip_eth_err <= 1'b0;
+            eth_err <= 1'b0;
             state <= HEADER;
             
         end else begin
             // these apply unless overridden below
-            ip_valid <= 1'b0;
-            ip_eof <= 1'b0;
-            ip_eth_err <= 1'b0;
+            eth_byte_valid <= 1'b0;
+            eth_eof <= 1'b0;
+            eth_err <= 1'b0;
             fifo_ready <= 1'b1;// deal with this properly
             
             if (fifo_ready && fifo_valid) begin
@@ -64,18 +66,18 @@ module eth_parser (
                         byte_cnt <= byte_cnt + 1'b1;
                         if (fifo_frame_err && fifo_eof) begin
                             // frame error from mac - rst count
-                            ip_eth_err <= 1'b1;
-                            ip_eof <= 1'b1;
+                            eth_err <= 1'b1;
+                            eth_eof <= 1'b1;
                             byte_cnt <= '0;
-                        end else if (byte_cnt == 2*MAC_LEN) begin
+                        end else if (byte_cnt == ETHERTYPE_POS) begin
                             ethertype_msb <= data_in;
-                        end else if (byte_cnt == 2*MAC_LEN+1) begin
+                        end else if (byte_cnt == ETHERTYPE_POS+1) begin
                             // check if frame is using IPv4
-                            if ({ethertype_msb, data_in} == IPV4_ETHERTYPE) begin
+                            byte_cnt <= '0;
+                            if ({ethertype_msb, data_in} == ETHERTYPE) begin
                                 state <= PAYLOAD;
-                                byte_cnt <= '0;
                             end else begin
-                                ip_eth_err <= 1'b1;
+                                eth_err <= 1'b1;
                                 state <= ERROR;
                             end
                         end
@@ -84,18 +86,18 @@ module eth_parser (
                     end
                     
                     PAYLOAD : begin
+                        eth_byte_valid <= 1'b1;
                         if (fifo_frame_err && fifo_eof) begin
-                            // frame error from crc
-                            ip_eth_err <= 1'b1;
-                            ip_eof <= 1'b1;
+                            // frame error from crc - drop frame
+                            eth_err <= 1'b1;
+                            eth_eof <= 1'b1;
                             state <= HEADER;
                         end else begin
-                            ip_data_out <= data_in;
-                            ip_valid <= 1'b1;
+                            eth_data_out <= data_in;
                             
                             if (fifo_eof) begin
                                 // end of valid frame
-                                ip_eof <= 1'b1;
+                                eth_eof <= 1'b1;
                                 state <= HEADER;
                             end
                         

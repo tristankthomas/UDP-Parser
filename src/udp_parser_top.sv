@@ -1,3 +1,24 @@
+`timescale 1ns / 1ps
+
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 14.02.2026 22:12:32
+// Design Name: 
+// Module Name: udp_parser_top
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
 module udp_parser_top #(
     parameter POR_BIT = 24
@@ -34,7 +55,7 @@ module udp_parser_top #(
     assign ETH_nRST = rst_n;
     
     // instantiate mac
-    eth_mac_rx #(
+    mii_mac_rx #(
         .MAC_ADDR(MAC_ADDR)
     ) u_mac_rx (
         .rx_clk(ETH_RXCK),

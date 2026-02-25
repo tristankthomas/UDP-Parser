@@ -6,7 +6,7 @@ import eth_pkg::*;
 // 
 // Create Date: 18.02.2026 17:46:32
 // Design Name: 
-// Module Name: udp_parser_top_tb
+// Module Name: tb_udp_parser_top
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -21,7 +21,7 @@ import eth_pkg::*;
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module udp_parser_top_tb;
+module tb_udp_parser_top;
     
     parameter SYS_CLK_FREQ = 50_000_000;
     parameter SYS_CLK_PERIOD = 1.0e9/SYS_CLK_FREQ;

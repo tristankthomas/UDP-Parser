@@ -1,6 +1,25 @@
 `timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 21.12.2025 22:03:20
+// Design Name: 
+// Module Name: tb_uart_baud_gen
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
-module uart_baud_gen_tb();
+module tb_uart_baud_gen;
 
     parameter CLK_FREQ = 50_000_000;
     parameter real CLK_PERIOD = 1.0e9/CLK_FREQ;

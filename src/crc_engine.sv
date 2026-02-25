@@ -20,14 +20,14 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module crc_engine(
+module crc_engine (
     input logic clk,
     input logic rst_n,
     input logic init,
     input logic [7:0] byte_in,
     input logic en,
     output logic [31:0] crc
-    );
+);
     
     
     always_ff @(posedge clk or negedge rst_n) begin

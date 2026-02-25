@@ -5,7 +5,7 @@
 // 
 // Create Date: 19.02.2026 22:28:29
 // Design Name: 
-// Module Name: ip_parser_tb
+// Module Name: tp_ip_parser
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module ip_parser_tb;
+module tp_ip_parser;
 
     parameter CLK_FREQ = 50_000_000;
     parameter CLK_PERIOD = 1.0e9/CLK_FREQ;

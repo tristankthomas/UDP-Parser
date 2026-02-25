@@ -18,7 +18,9 @@
 *.sim/
 *.runs/
 *.cache/
+*.srcs/
 *.ip_user_files/
+*.gen/
 
 # --- User-Specific Local Settings ---
 *.xpr.user

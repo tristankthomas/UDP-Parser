@@ -5,7 +5,7 @@
 // 
 // Create Date: 17.02.2026 18:57:01
 // Design Name: 
-// Module Name: eth_parser_tb
+// Module Name: tb_eth_parser
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module eth_parser_tb;
+module tb_eth_parser;
 
     parameter CLK_FREQ = 50_000_000;
     parameter CLK_PERIOD = 1.0e9/CLK_FREQ;

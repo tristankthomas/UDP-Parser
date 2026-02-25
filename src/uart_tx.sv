@@ -1,4 +1,23 @@
 `timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 16.01.2026 21:18:24
+// Design Name: 
+// Module Name: uart_tx
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
 module uart_tx (
     input logic clk,
@@ -8,7 +27,7 @@ module uart_tx (
     output logic tx,
     output logic busy,
     output logic tx_done
-    );
+);
     logic baud_tick;
     typedef enum logic [2:0] { IDLE, START, DATA, STOP, DONE } state_t;
     

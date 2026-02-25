@@ -1,5 +1,23 @@
 `timescale 1ns / 1ps
-
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 06.01.2026 19:21:07
+// Design Name: 
+// Module Name: uart_rx
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
 module uart_rx (
     input logic rx,
@@ -9,7 +27,7 @@ module uart_rx (
     output logic data_valid,
     output logic busy,
     output logic frame_err
-    );
+);
     
     logic baud_tick;
     logic rx_sync;

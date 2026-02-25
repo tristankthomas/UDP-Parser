@@ -1,6 +1,25 @@
 `timescale 1ns / 1ps
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 16.01.2026 22:59:28
+// Design Name: 
+// Module Name: tb_uart_tx
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
 
-module uart_tx_tb ();
+module tb_uart_tx;
     parameter CLK_FREQ = 50_000_000;
     parameter real CLK_PERIOD = 1.0e9/CLK_FREQ;
     parameter BAUD_RATE = 9_600;

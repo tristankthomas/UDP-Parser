@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 import eth_pkg::*;
 
-module eth_mac_rx_tb;
+module tb_mii_mac_rx;
 
     parameter RX_CLK_FREQ = 25_000_000; // 25MHz clk
     parameter RX_CLK_PERIOD = 1.0e9/RX_CLK_FREQ;
@@ -36,7 +36,7 @@ module eth_mac_rx_tb;
     logic [7:0] tx_frame_q[$]; // queue used to store send data
     
     // instantiate MAC
-    eth_mac_rx #(
+    mii_mac_rx #(
         .MAC_ADDR(DEST_MAC)
     ) uut (
         .rx_clk(rx_clk),

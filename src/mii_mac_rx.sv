@@ -1,6 +1,29 @@
+`timescale 1ns / 1ps
+
+//////////////////////////////////////////////////////////////////////////////////
+// Company: 
+// Engineer: 
+// 
+// Create Date: 22.01.2026 20:47:06
+// Design Name: 
+// Module Name: mii_mac_rx
+// Project Name: 
+// Target Devices: 
+// Tool Versions: 
+// Description: 
+// 
+// Dependencies: 
+// 
+// Revision:
+// Revision 0.01 - File Created
+// Additional Comments:
+// 
+//////////////////////////////////////////////////////////////////////////////////
+
 import eth_pkg::*;
 
-module eth_mac_rx #(
+
+module mii_mac_rx #(
     parameter byte_t [5:0] MAC_ADDR
 )(
     input logic rx_clk,

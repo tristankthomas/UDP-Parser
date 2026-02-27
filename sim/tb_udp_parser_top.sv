@@ -28,7 +28,8 @@ module tb_udp_parser_top;
     parameter RX_CLK_FREQ = 25_000_000;
     parameter RX_CLK_PERIOD = 1.0e9/RX_CLK_FREQ;
     
-    parameter DEST_MAC = 48'h04_A4_DD_09_35_C7;
+    parameter DEST_MAC = 48'h04A4DD0935C7;
+    parameter DEST_IP = 32'hC0A80101;
         
     logic PL_CLK_50M;
     logic ETH_RXCK;
@@ -38,7 +39,7 @@ module tb_udp_parser_top;
     logic ETH_nRST;
     logic PL_LED1; // frame valid
     logic PL_LED2; // frame error
-    
+   
     logic expected_valid;
 
     // instantiate system
@@ -65,44 +66,103 @@ module tb_udp_parser_top;
     
     initial PL_KEY1 = 1;
     
-    // ethernet frame class
     class eth_frame;
-        byte_t [5:0] dest_mac, source_mac;
+        // ethernet header
+        byte_t [5:0] dest_mac;
+        byte_t [5:0] source_mac;
         byte_t [1:0] ether_type;
+    
+        // ipv4 header fields
+        logic [3:0] ip_version;
+        logic [3:0] ip_ihl;
+        byte_t ip_tos;
+        byte_t [1:0] ip_total_length;
+        byte_t [1:0] ip_id;
+        byte_t [1:0] ip_flags_offset;
+        byte_t ip_ttl;
+        byte_t ip_protocol;
+        byte_t [1:0] ip_checksum;
+        byte_t [3:0] src_ip_addr;
+        byte_t [3:0] dest_ip_addr;
+    
+        // data and control
         byte_t payload[];
         byte_t [3:0] fcs;
-        
+    
         function new(
             input byte_t [5:0] dest_mac,
             input byte_t [5:0] source_mac,
             input byte_t [1:0] ether_type,
+            input logic [3:0]  ip_version,
+            input byte_t trans_protocol,
+            input byte_t [3:0] src_ip_addr,
+            input byte_t [3:0] dest_ip_addr,
             input byte_t payload[],
             input logic valid_frame
         );
-            
+            // ethernet mapping
             this.dest_mac = dest_mac;
             this.source_mac = source_mac;
             this.ether_type = ether_type;
+    
+            // ip mapping
+            this.ip_version = ip_version;
+            this.ip_ihl = 4'h5;
+            this.ip_tos = 8'h00;
+            this.ip_id = 16'h0000;
+            this.ip_flags_offset = 16'h4000;
+            this.ip_ttl = 8'h40;
+            this.ip_protocol = trans_protocol;
+            this.src_ip_addr = src_ip_addr;
+            this.dest_ip_addr = dest_ip_addr;
+    
+            // calculate ip total length
+            this.ip_total_length = 16'd20 + payload.size();
+    
             this.payload = payload;
-            this.fcs = calculate_fcs();
             expected_valid = valid_frame;
+    
+            // checksums
+            this.ip_checksum = 16'h0000;
+            this.fcs = calculate_fcs();
+        endfunction
+        
+        function void pack(output byte_t stream[]);
+            // serialise fields into byte stream
+            stream = {>>{
+                this.dest_mac,
+                this.source_mac,
+                this.ether_type,
+                {this.ip_version, this.ip_ihl}, 
+                this.ip_tos,
+                this.ip_total_length,
+                this.ip_id,
+                this.ip_flags_offset,
+                this.ip_ttl,
+                this.ip_protocol,
+                this.ip_checksum,
+                this.src_ip_addr,
+                this.dest_ip_addr,
+                this.payload
+            }};
         endfunction
         
         function byte_t [3:0] calculate_fcs();
-            logic [31:0] crc_reg;
-            crc_reg = 32'hFFFFFFFF;
-        
-            // destination MAC
-            for (int i = 5; i >= 0; i--) crc_reg = get_next_crc(crc_reg, dest_mac[i]);
-            // source MAC
-            for (int i = 5; i >= 0; i--) crc_reg = get_next_crc(crc_reg, source_mac[i]);
-            // EtherType
-            for (int i = 1; i >= 0; i--) crc_reg = get_next_crc(crc_reg, ether_type[i]);
-            // payload
-            foreach (payload[i]) crc_reg = get_next_crc(crc_reg, payload[i]);
-        
-            return crc_reg ^ 32'hFFFFFFFF;
+            logic [31:0] crc_reg = 32'hFFFFFFFF;
+            byte_t raw_data[];
+            
+            // pack all fields
+            this.pack(raw_data);
+
+            // compute crc
+            foreach (raw_data[i]) begin
+                crc_reg = get_next_crc(crc_reg, raw_data[i]);
+            end
+
+            return ~(crc_reg);
         endfunction
+        
+       
         
         // ouputs the CRC after 8 bit shifts (generated through crc_engine_gen.py)
         function logic [31:0] get_next_crc(input logic [31:0] c, input byte_t d);
@@ -160,10 +220,14 @@ module tb_udp_parser_top;
     
     
     task automatic send_frame (input eth_frame frame, input logic crc_err=1'b0);
-        $write("Payload (%0d bytes): ", frame.payload.size());
-        foreach (frame.payload[i])
-            $write("%02X ", frame.payload[i]);
-        $display("");
+        byte_t raw_stream[];
+        
+        // serialise the entire frame (headers + payload)
+        frame.pack(raw_stream);
+
+        $write("Sending Frame: %0d bytes. ", raw_stream.size());
+        $display("Payload size: %0d bytes.", frame.payload.size());
+
         // let mac know data is available
         ETH_RXDV <= 1'b1;
         
@@ -171,24 +235,22 @@ module tb_udp_parser_top;
         repeat(PREAMBLE_LEN) send_byte(PREAMBLE_BYTE);
         send_byte(SFD_BYTE);
         
-        // send destination mac
-        for (int i = MAC_LEN-1; i >= 0; i--) send_byte(frame.dest_mac[i]);
-        // send source mac
-        for (int i = MAC_LEN-1; i >= 0; i--) send_byte(frame.source_mac[i]);
-        // send ethertype
-        send_byte(frame.ether_type[1]);
-        send_byte(frame.ether_type[0]);
-        // send payload
-        foreach(frame.payload[i]) send_byte(frame.payload[i]);
+        // send serialised header and payload
+        foreach (raw_stream[i]) begin
+            send_byte(raw_stream[i]);
+        end
         
-        if (crc_err) send_byte(8'hAB);
-        
-        // send FSC
-        for (int i = 0; i < 4; i++) send_byte(frame.fcs[i]);
+        // send fcs
+        if (crc_err) begin
+            // inject intentional error by inverting bits
+            for (int i = 0; i < 4; i++) send_byte(~frame.fcs[i]);
+        end else begin
+            for (int i = 0; i < 4; i++) send_byte(frame.fcs[i]);
+        end
         
         // end of frame
         ETH_RXDV <= 1'b0;
-        ETH_RXD <= 4'h0;
+        ETH_RXD  <= 4'h0;
         
         // interframe gap
         repeat(IFG_CYCLES) @(posedge ETH_RXCK);
@@ -228,59 +290,74 @@ module tb_udp_parser_top;
         wait(uut.por_done == 1'b1);
         
         $display("Sending valid frame");
-        // valid frame
         f0 = new(
-            DEST_MAC,
-            48'h71ABD97E0110,
-            16'h0800,
-            random_payload(32),
-            1
+            .dest_mac(DEST_MAC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h0800),
+            .ip_version(4'd4),
+            .trans_protocol(8'h11),
+            .src_ip_addr(32'hC0A8_0101),
+            .dest_ip_addr(DEST_IP),
+            .payload(random_payload(4)),
+            .valid_frame(1'b1)
         );
         send_frame(f0);
-        
-        $display("Sending valid frame");
-        // valid frame
+
+        $display("Sending invalid frame - wrong transport protocol");
         f1 = new(
-            DEST_MAC,
-            48'h71ABD97E0110,
-            16'h0800,
-            random_payload(25),
-            1
+            .dest_mac(DEST_MAC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h0800),
+            .ip_version(4'd4),
+            .trans_protocol(8'h12),
+            .src_ip_addr(32'h0A00_0001),
+            .dest_ip_addr(DEST_IP),
+            .payload(random_payload(25)),
+            .valid_frame(1'b0)
         );
         send_frame(f1);
-        
-        $display("Sending invalid frame - wrong mac");
-        // invalid frame - wrong mac
+
+        $display("Sending invalid frame - wrong ip addr");
         f2 = new(
-            48'h123456789ABC,
-            48'h71ABD97E0110,
-            16'h0800,
-            random_payload(16),
-            0
+            .dest_mac(48'h123456789ABC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h0800),
+            .ip_version(4'd4),
+            .trans_protocol(8'h11),
+            .src_ip_addr(32'hC0A8_0101),
+            .dest_ip_addr(32'hC0A8_0112),
+            .payload(random_payload(16)),
+            .valid_frame(1'b0)
         );
         send_frame(f2);
-        
+
         $display("Sending invalid frame - ethertype");
-        // invalid frame - wrong mac
         f3 = new(
-            DEST_MAC,
-            48'h71ABD97E0110,
-            16'h58B0,
-            random_payload(16),
-            0
+            .dest_mac(DEST_MAC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h58B0),
+            .ip_version(4'd4),
+            .trans_protocol(8'h11),
+            .src_ip_addr(32'hC0A8_0101),
+            .dest_ip_addr(DEST_IP),
+            .payload(random_payload(4)),
+            .valid_frame(1'b0)
         );
         send_frame(f3);
-        
+
         $display("Sending invalid frame - crc");
-        // invalid frame - wrong mac
         f4 = new(
-            DEST_MAC,
-            48'h71ABD97E0110,
-            16'h0800,
-            random_payload(16),
-            0
+            .dest_mac(DEST_MAC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h0800),
+            .ip_version(4'd4),
+            .trans_protocol(8'h11),
+            .src_ip_addr(32'hC0A8_0101),
+            .dest_ip_addr(DEST_IP),
+            .payload(random_payload(16)),
+            .valid_frame(1'b0)
         );
-        send_frame(f4, 1);
+        send_frame(f4, 1'b1);
         
         @(posedge ETH_RXCK);
         $display("Simulation Finished at %t", $time);

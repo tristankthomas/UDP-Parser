@@ -39,8 +39,8 @@ module udp_parser_top #(
     
     logic rst_n;
     logic [7:0] fifo_byte;
-    logic frame_err;
-    logic frame_valid;
+    logic mac_frame_err;
+    logic mac_frame_valid;
     logic wr_en;
     logic por_done; // Power on Reset done
     
@@ -64,8 +64,8 @@ module udp_parser_top #(
         .rx_data(ETH_RXD),
         .rx_valid(ETH_RXDV),
         .data_out(fifo_byte),
-        .frame_err(frame_err),
-        .frame_valid(frame_valid),
+        .frame_err(mac_frame_err),
+        .frame_valid(mac_frame_valid),
         .wr_en(wr_en)
     );
     
@@ -107,7 +107,7 @@ module udp_parser_top #(
       .s_axis_tready(s_axis_tready),
       .s_axis_tdata(fifo_byte),
       .s_axis_tlast(s_axis_tlast),
-      .s_axis_tuser(frame_err),
+      .s_axis_tuser(mac_frame_err),
       .m_axis_aclk(PL_CLK_50M),
       .m_axis_tvalid(m_axis_tvalid),
       .m_axis_tready(m_axis_tready),
@@ -116,7 +116,7 @@ module udp_parser_top #(
       .m_axis_tuser(m_axis_tuser)
     );
     
-    assign s_axis_tlast = frame_valid || frame_err;
+    assign s_axis_tlast = mac_frame_valid || mac_frame_err;
     assign fifo_overflow = wr_en && !s_axis_tready;
  
 //    // stretch fifo overflow for LED2
@@ -151,8 +151,33 @@ module udp_parser_top #(
         .eth_err(eth_err)
     );
     
-    logic eth_frame_valid;
-    assign eth_frame_valid = eth_eof && ~eth_err;
+    logic [7:0] ip_data_out;
+    logic ip_data_valid;
+    logic ip_eof;
+    logic ip_err;
+    
+    // send data through IP header passer
+    ip_parser #(
+        .TRANSPORT_PROTOCOL(8'd17),
+        .IP_ADDRESS(32'hC0A80101)
+    ) u_ip_parser (
+        .clk(PL_CLK_50M),
+        .rst_n(rst_n),
+        .eth_data_in(eth_data_out),
+        .eth_eof(eth_eof),
+        .eth_err(eth_err),
+        .eth_byte_valid(eth_data_valid),
+        .ip_data_out(ip_data_out),
+        .ip_byte_valid(ip_data_valid),
+        .ip_eof(ip_eof),
+        .ip_err(ip_err)
+    );
+    
+    logic frame_valid;
+    assign frame_valid = ip_eof && ~ip_err;
+    
+    logic frame_err;
+    assign frame_err = eth_err || ip_err;
 //    assign PL_LED1 = eth_eof && ~eth_err;
 //    assign PL_LED2 = eth_err;
     // stretch frame_valid for LED1
@@ -161,7 +186,7 @@ module udp_parser_top #(
     ) ps_valid (
         .clk(PL_CLK_50M),
         .rst_n(rst_n),
-        .trigger(eth_frame_valid),
+        .trigger(frame_valid),
         .dout(PL_LED1)
     );
     
@@ -171,7 +196,7 @@ module udp_parser_top #(
     ) ps_err (
         .clk(PL_CLK_50M),
         .rst_n(rst_n),
-        .trigger(eth_err),
+        .trigger(frame_err),
         .dout(PL_LED2)
     );
     

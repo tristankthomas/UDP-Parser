@@ -173,11 +173,36 @@ module udp_parser_top #(
         .ip_err(ip_err)
     );
     
+    
+    // send date through UDP header parser
+    logic [7:0] udp_data_out;
+    logic udp_data_valid;
+    logic udp_eof;
+    logic udp_err;
+
+    // send data through UDP header parser
+    udp_parser #(
+        .DEST_PORT(16'h1234)
+    ) u_udp_parser (
+        .clk(PL_CLK_50M),
+        .rst_n(rst_n),
+        .ip_data_in(ip_data_out),
+        .ip_eof(ip_eof),
+        .ip_err(ip_err),
+        .ip_byte_valid(ip_data_valid),
+        .udp_data_out(udp_data_out),
+        .udp_byte_valid(udp_data_valid),
+        .udp_eof(udp_eof),
+        .udp_err(udp_err)
+    );
+    
+    
+    
     logic frame_valid;
-    assign frame_valid = ip_eof && ~ip_err;
+    assign frame_valid = udp_eof && ~udp_err;
     
     logic frame_err;
-    assign frame_err = eth_err || ip_err;
+    assign frame_err = eth_err || ip_err || udp_err;
 //    assign PL_LED1 = eth_eof && ~eth_err;
 //    assign PL_LED2 = eth_err;
     // stretch frame_valid for LED1

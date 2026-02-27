@@ -34,7 +34,7 @@ source scripts/recreate_project.tcl
 3. **AXI4-Stream Data FIFO**: Acts as an elastic buffer to bridge the MII RX clock domain to the System Clock domain.
 4. **Ethernet Frame Parser**: Evaluates the Ethernet Header. Filters non-IP packets through EtherType.
 5. **IP Packet Parser**: Validates IPv4 header length, checksum, and protocol type (UDP).
-6. **UDP Datagram Parser**: Identifies Destination Port and extracts payload length. TODO
+6. **UDP Datagram Parser**: Identifies Destination Port and extracts payload length.
 7. **PS Interface**: Payload data is transferred to the ARM core. TODO
 8. **Feedback Loop**: UART interface transmits payload and calculated latency statistics back to the host PC. TODO
 

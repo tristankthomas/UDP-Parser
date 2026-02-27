@@ -20,7 +20,6 @@ import eth_pkg::*;
 // 
 //////////////////////////////////////////////////////////////////////////////////
 
-
 module tb_udp_parser_top;
     
     parameter SYS_CLK_FREQ = 50_000_000;
@@ -30,6 +29,7 @@ module tb_udp_parser_top;
     
     parameter DEST_MAC = 48'h04A4DD0935C7;
     parameter DEST_IP = 32'hC0A80101;
+    parameter DEST_PORT = 16'h1234;
         
     logic PL_CLK_50M;
     logic ETH_RXCK;
@@ -84,6 +84,12 @@ module tb_udp_parser_top;
         byte_t [1:0] ip_checksum;
         byte_t [3:0] src_ip_addr;
         byte_t [3:0] dest_ip_addr;
+
+        // udp header fields
+        byte_t [1:0] udp_src_port;
+        byte_t [1:0] udp_dest_port;
+        byte_t [1:0] udp_length;
+        byte_t [1:0] udp_checksum;
     
         // data and control
         byte_t payload[];
@@ -97,6 +103,8 @@ module tb_udp_parser_top;
             input byte_t trans_protocol,
             input byte_t [3:0] src_ip_addr,
             input byte_t [3:0] dest_ip_addr,
+            input byte_t [1:0] udp_src_port,
+            input byte_t [1:0] udp_dest_port,
             input byte_t payload[],
             input logic valid_frame
         );
@@ -115,9 +123,15 @@ module tb_udp_parser_top;
             this.ip_protocol = trans_protocol;
             this.src_ip_addr = src_ip_addr;
             this.dest_ip_addr = dest_ip_addr;
+
+            // udp mapping
+            this.udp_src_port = udp_src_port;
+            this.udp_dest_port = udp_dest_port;
+            this.udp_length = 16'd8 + payload.size();
+            this.udp_checksum = 16'h0000;
     
-            // calculate ip total length
-            this.ip_total_length = 16'd20 + payload.size();
+            // calculate ip total length (20B IP header + 8B UDP header + payload)
+            this.ip_total_length = 16'd28 + payload.size();
     
             this.payload = payload;
             expected_valid = valid_frame;
@@ -143,6 +157,10 @@ module tb_udp_parser_top;
                 this.ip_checksum,
                 this.src_ip_addr,
                 this.dest_ip_addr,
+                this.udp_src_port,
+                this.udp_dest_port,
+                this.udp_length,
+                this.udp_checksum,
                 this.payload
             }};
         endfunction
@@ -150,21 +168,13 @@ module tb_udp_parser_top;
         function byte_t [3:0] calculate_fcs();
             logic [31:0] crc_reg = 32'hFFFFFFFF;
             byte_t raw_data[];
-            
-            // pack all fields
             this.pack(raw_data);
-
-            // compute crc
             foreach (raw_data[i]) begin
                 crc_reg = get_next_crc(crc_reg, raw_data[i]);
             end
-
             return ~(crc_reg);
         endfunction
         
-       
-        
-        // ouputs the CRC after 8 bit shifts (generated through crc_engine_gen.py)
         function logic [31:0] get_next_crc(input logic [31:0] c, input byte_t d);
             logic [31:0] next_crc;
             next_crc[0] = c[2] ^ c[8] ^ d[2];
@@ -199,10 +209,8 @@ module tb_udp_parser_top;
             next_crc[29] = c[0] ^ c[1] ^ c[5] ^ c[6] ^ c[7] ^ d[0] ^ d[1] ^ d[5] ^ d[6] ^ d[7];
             next_crc[30] = c[0] ^ c[1] ^ c[6] ^ c[7] ^ d[0] ^ d[1] ^ d[6] ^ d[7];
             next_crc[31] = c[1] ^ c[7] ^ d[1] ^ d[7];
-            
             return next_crc;
         endfunction
-        
     endclass
     
     // driver
@@ -211,68 +219,44 @@ module tb_udp_parser_top;
     endtask
     
     task automatic send_byte (input logic [7:0] data);
-//        $display("DEBUG: Sending byte %h", data);
         send_nibble(data[3:0]);
         @(posedge ETH_RXCK);
         send_nibble(data[7:4]);
         @(posedge ETH_RXCK);
     endtask
     
-    
     task automatic send_frame (input eth_frame frame, input logic crc_err=1'b0);
         byte_t raw_stream[];
-        
-        // serialise the entire frame (headers + payload)
         frame.pack(raw_stream);
-
         $write("Sending Frame: %0d bytes. ", raw_stream.size());
         $display("Payload size: %0d bytes.", frame.payload.size());
-
-        // let mac know data is available
         ETH_RXDV <= 1'b1;
-        
-        // preamble
         repeat(PREAMBLE_LEN) send_byte(PREAMBLE_BYTE);
         send_byte(SFD_BYTE);
-        
-        // send serialised header and payload
         foreach (raw_stream[i]) begin
             send_byte(raw_stream[i]);
         end
-        
-        // send fcs
         if (crc_err) begin
-            // inject intentional error by inverting bits
             for (int i = 0; i < 4; i++) send_byte(~frame.fcs[i]);
         end else begin
             for (int i = 0; i < 4; i++) send_byte(frame.fcs[i]);
         end
-        
-        // end of frame
         ETH_RXDV <= 1'b0;
         ETH_RXD  <= 4'h0;
-        
-        // interframe gap
         repeat(IFG_CYCLES) @(posedge ETH_RXCK);
-        
     endtask
-    
     
     function automatic byte_array_t random_payload(input int length);
         byte_array_t payload;
         payload = new[length];
-    
         for (int i = 0; i < length; i++) payload[i] = $urandom_range(0, 255);
-    
         return payload;
     endfunction
-    
     
     // check for a valid frame
     always @(posedge PL_LED1) begin
         if (expected_valid) $display("SUCCESS: Valid frame transmitted successfully");
         else $display("FAIL: Invalid frame transmitted successfully");
-        
     end
     
     // check for frame failure
@@ -281,15 +265,13 @@ module tb_udp_parser_top;
         else $display("FAIL: Valid frame transmitted unsuccessfully");
     end
     
-    
     initial begin
-        
-        eth_frame f0, f1, f2, f3, f4;
+        eth_frame f0, f1, f2, f3, f4, f5;
         
         // power on reset
         wait(uut.por_done == 1'b1);
         
-        $display("Sending valid frame");
+        $display("Sending valid UDP frame");
         f0 = new(
             .dest_mac(DEST_MAC),
             .source_mac(48'h71ABD97E0110),
@@ -298,13 +280,31 @@ module tb_udp_parser_top;
             .trans_protocol(8'h11),
             .src_ip_addr(32'hC0A8_0101),
             .dest_ip_addr(DEST_IP),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(DEST_PORT),
             .payload(random_payload(4)),
             .valid_frame(1'b1)
         );
         send_frame(f0);
 
-        $display("Sending invalid frame - wrong transport protocol");
+        $display("Sending invalid frame - wrong UDP port");
         f1 = new(
+            .dest_mac(DEST_MAC),
+            .source_mac(48'h71ABD97E0110),
+            .ether_type(16'h0800),
+            .ip_version(4'd4),
+            .trans_protocol(8'h11),
+            .src_ip_addr(32'hC0A8_0101),
+            .dest_ip_addr(DEST_IP),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(16'h5555), // Non-matching port
+            .payload(random_payload(4)),
+            .valid_frame(1'b0)
+        );
+        send_frame(f1);
+
+        $display("Sending invalid frame - wrong transport protocol");
+        f2 = new(
             .dest_mac(DEST_MAC),
             .source_mac(48'h71ABD97E0110),
             .ether_type(16'h0800),
@@ -312,13 +312,15 @@ module tb_udp_parser_top;
             .trans_protocol(8'h12),
             .src_ip_addr(32'h0A00_0001),
             .dest_ip_addr(DEST_IP),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(DEST_PORT),
             .payload(random_payload(25)),
             .valid_frame(1'b0)
         );
-        send_frame(f1);
+        send_frame(f2);
 
         $display("Sending invalid frame - wrong ip addr");
-        f2 = new(
+        f3 = new(
             .dest_mac(48'h123456789ABC),
             .source_mac(48'h71ABD97E0110),
             .ether_type(16'h0800),
@@ -326,13 +328,15 @@ module tb_udp_parser_top;
             .trans_protocol(8'h11),
             .src_ip_addr(32'hC0A8_0101),
             .dest_ip_addr(32'hC0A8_0112),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(DEST_PORT),
             .payload(random_payload(16)),
             .valid_frame(1'b0)
         );
-        send_frame(f2);
+        send_frame(f3);
 
         $display("Sending invalid frame - ethertype");
-        f3 = new(
+        f4 = new(
             .dest_mac(DEST_MAC),
             .source_mac(48'h71ABD97E0110),
             .ether_type(16'h58B0),
@@ -340,13 +344,15 @@ module tb_udp_parser_top;
             .trans_protocol(8'h11),
             .src_ip_addr(32'hC0A8_0101),
             .dest_ip_addr(DEST_IP),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(DEST_PORT),
             .payload(random_payload(4)),
             .valid_frame(1'b0)
         );
-        send_frame(f3);
+        send_frame(f4);
 
         $display("Sending invalid frame - crc");
-        f4 = new(
+        f5 = new(
             .dest_mac(DEST_MAC),
             .source_mac(48'h71ABD97E0110),
             .ether_type(16'h0800),
@@ -354,16 +360,15 @@ module tb_udp_parser_top;
             .trans_protocol(8'h11),
             .src_ip_addr(32'hC0A8_0101),
             .dest_ip_addr(DEST_IP),
+            .udp_src_port(16'hAAAA),
+            .udp_dest_port(DEST_PORT),
             .payload(random_payload(16)),
             .valid_frame(1'b0)
         );
-        send_frame(f4, 1'b1);
+        send_frame(f5, 1'b1);
         
         @(posedge ETH_RXCK);
         $display("Simulation Finished at %t", $time);
         $finish;        
-        
-    
     end
-    
 endmodule

@@ -97,7 +97,8 @@ module tb_udp_parser;
         input logic [15:0] src_port,
         input logic [15:0] dst_port,
         input byte_t payload[],
-        input logic upstream_err
+        input logic upstream_err,
+        input logic total_len_err
     );
         logic [15:0] udp_len;
 
@@ -105,7 +106,7 @@ module tb_udp_parser;
         foreach (payload[i]) $write("%02X ", payload[i]);
         $display("");
 
-        error_expected = dst_port !== DEST_PORT || upstream_err;
+        error_expected = dst_port !== DEST_PORT || upstream_err || total_len_err;
         
         // send source port
         send_ip_payload(src_port[15:8]);
@@ -116,7 +117,9 @@ module tb_udp_parser;
         send_ip_payload(dst_port[7:0]);
         
         // send length (header + payload)
-        udp_len = 16'd8 + payload.size();
+        if (total_len_err) udp_len = 16'd9 + payload.size();
+        else udp_len = 16'd8 + payload.size();
+            
         send_ip_payload(udp_len[15:8]);
         send_ip_payload(udp_len[7:0]);
         
@@ -185,13 +188,13 @@ module tb_udp_parser;
         reset();
         
         $display("--- Test 1: Valid UDP Frame ---");
-        send_udp_frame(16'hAAAA, DEST_PORT, random_payload(20), 0);
+        send_udp_frame(16'hAAAA, DEST_PORT, random_payload(20), 0, 1);
         
         $display("\n--- Test 2: Invalid Port ---");
-        send_udp_frame(16'hAAAA, 16'h5555, random_payload(20), 0);
+        send_udp_frame(16'hAAAA, 16'h5555, random_payload(20), 0, 0);
         
         $display("\n--- Test 3: Upstream IP Error ---");
-        send_udp_frame(16'hAAAA, DEST_PORT, random_payload(20), 1);
+        send_udp_frame(16'hAAAA, DEST_PORT, random_payload(20), 1, 0);
         
         $display("\nSimulation Finished at %t", $time);
         $finish;

@@ -28,6 +28,7 @@ module udp_parser #(
     logic [15:0] dest_port;
     logic [15:0] udp_len;
     logic [15:0] udp_checksum;
+    logic [15:0] payload_rem_cnt;
 
     always_ff @(posedge clk or negedge rst_n) begin
         if (~rst_n) begin
@@ -89,6 +90,7 @@ module udp_parser #(
                             8'd7: begin
                                 udp_checksum[7:0] <= ip_data_in;
                                 header_cnt <= '0;
+                                payload_rem_cnt <= udp_len - 16'd8;
                                 state <= PAYLOAD;
                             end
 
@@ -97,14 +99,24 @@ module udp_parser #(
                     end
                     
                     PAYLOAD: begin
-                        udp_byte_valid <= 1'b1;
-                        udp_data_out <= ip_data_in;
+                        // ignores any paddig missed by IP layer
+                        if (payload_rem_cnt > 16'h0) begin
+                            udp_byte_valid <= 1'b1;
+                            udp_data_out <= ip_data_in;
+                            payload_rem_cnt <= payload_rem_cnt - 1'b1;
+                        end
 
                         if (ip_eof) begin
-                            udp_eof <= 1'b1;
-                            // check if upstream signalled an error
-                            if (ip_err) udp_err <= 1'b1;
+                        
+                            if (payload_rem_cnt > 16'h1) begin
+                                // IP frame ended before UDP payload was finished
+                                udp_err <= 1'b1;
+                            end else if (ip_err) begin
+                                // upstream error
+                                udp_err <= 1'b1;
+                            end
                             
+                            udp_eof <= 1'b1;
                             state <= HEADER;
                             header_cnt <= '0;
                         end

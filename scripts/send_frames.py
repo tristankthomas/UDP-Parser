@@ -24,7 +24,7 @@ while True:
     # build ethernet frame with ip and udp
     # calculates length and checksums automatically
     frame = Ether(dst=dst_mac, src=src_mac) / \
-            IP(dst=dst_ip, src=src_ip) / \
+            IP(dst=dst_ip, src=src_ip, chksum=0xDEAD) / \
             UDP(sport=src_port, dport=dst_port) / \
             Raw(load=payload)
 

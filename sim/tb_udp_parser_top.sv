@@ -137,7 +137,7 @@ module tb_udp_parser_top;
             expected_valid = valid_frame;
     
             // checksums
-            this.ip_checksum = 16'h0000;
+            this.ip_checksum = calculate_ip_checksum();
             this.fcs = calculate_fcs();
         endfunction
         
@@ -165,6 +165,44 @@ module tb_udp_parser_top;
             }};
         endfunction
         
+        // ip checksum calculation
+        function automatic logic [15:0] calculate_ip_checksum();
+            logic [31:0] sum = 0;
+            byte_t header_bytes[];
+            
+            // pack only ip header fields with checksum field zeroed
+            header_bytes = {>>{
+                {this.ip_version, this.ip_ihl},
+                this.ip_tos,
+                this.ip_total_length,
+                this.ip_id,
+                this.ip_flags_offset,
+                this.ip_ttl,
+                this.ip_protocol,
+                16'h0000, 
+                this.src_ip_addr,
+                this.dest_ip_addr
+            }};
+
+            // 1's complement summation
+            for (int i = 0; i < header_bytes.size(); i += 2) begin
+                if (i + 1 < header_bytes.size()) begin
+                    sum = sum + {header_bytes[i], header_bytes[i+1]};
+                end else begin
+                    // handle odd byte length
+                    sum = sum + {header_bytes[i], 8'h00};
+                end
+            end
+
+            // fold carry bits
+            while (sum >> 16) begin
+                sum = (sum & 32'hFFFF) + (sum >> 16);
+            end
+
+            return ~sum[15:0];
+        endfunction
+        
+        // calculate crc-32 fcs bytes
         function byte_t [3:0] calculate_fcs();
             logic [31:0] crc_reg = 32'hFFFFFFFF;
             byte_t raw_data[];

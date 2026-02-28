@@ -80,7 +80,7 @@ module ip_parser #(
                     HEADER: begin
                         case (header_cnt)
                             8'd0: begin
-                                // byte 1 IP version & ihl
+                                // IP version & ihl
                                 if (eth_data_in[7:4] !== 4'd4) begin
                                     ip_err <= 1'b1;
                                     state <= FLUSH;
@@ -89,16 +89,21 @@ module ip_parser #(
                                 header_cnt <= header_cnt + 1'b1;
                             end
                             
+                            // skip tos
+                            
+                            // total packet length
                             8'd2: begin
                                 ip_total_len[15:8] <= eth_data_in;
                                 header_cnt <= header_cnt + 1'b1;
                             end
-                
                             8'd3: begin
                                 ip_total_len[7:0] <= eth_data_in;
                                 header_cnt <= header_cnt + 1'b1;
                             end
-                
+                            
+                            // skip ID, flags, frag and ttl
+                            
+                            // transport protocol
                             8'd9: begin
                                 if (eth_data_in !== TRANSPORT_PROTOCOL) begin
                                     ip_err <= 1'b1;
@@ -106,6 +111,8 @@ module ip_parser #(
                                 end
                                 header_cnt <= header_cnt + 1'b1;
                             end
+                            
+                            // skip checksum and srs IP addr
                 
                             8'd16, 8'd17, 8'd18: begin
                                 header_cnt <= header_cnt + 1'b1;
@@ -119,6 +126,8 @@ module ip_parser #(
                                     state <= FLUSH;
                                 end
                             end
+                            
+                            // add more options if required
                 
                             default: header_cnt <= header_cnt + 1'b1;
                         endcase
